@@ -94,20 +94,31 @@ export async function POST(
   }
 
   // Garante Room no LiveKit (idempotente)
-  await ensureRoom({
-    roomName: livekitRoomName,
-    maxParticipants: (room as { max_members?: number }).max_members ?? 20,
-    metadata: { sessionId, roomId: room.id, name: room.name },
-  })
+  try {
+    await ensureRoom({
+      roomName: livekitRoomName,
+      maxParticipants: (room as { max_members?: number }).max_members ?? 20,
+      metadata: { sessionId, roomId: room.id, name: room.name },
+    })
+  } catch (err) {
+    console.error('[token/route] ensureRoom falhou:', err)
+    return NextResponse.json({ error: 'Erro ao criar sala LiveKit' }, { status: 500 })
+  }
 
   // Minta token
-  const token = await mintJoinToken({
-    identity: user.id,
-    name: member.name ?? user.email!.split('@')[0],
-    roomName: livekitRoomName,
-    mode: 'conversa',
-    sessionScheduledAt: scheduledAt,
-  })
+  let token: string
+  try {
+    token = await mintJoinToken({
+      identity: user.id,
+      name: member.name ?? user.email!.split('@')[0],
+      roomName: livekitRoomName,
+      mode: 'conversa',
+      sessionScheduledAt: scheduledAt,
+    })
+  } catch (err) {
+    console.error('[token/route] mintJoinToken falhou:', err)
+    return NextResponse.json({ error: 'Erro ao gerar token LiveKit' }, { status: 500 })
+  }
 
   return NextResponse.json({
     token,

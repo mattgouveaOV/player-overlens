@@ -109,7 +109,7 @@ function RoomPageInner({ sessionId, roomId }: Props) {
       else if (res.status === 409 && reason === 'not_yet_open') setErrorMsg('O encontro ainda não abriu.')
       else if (res.status === 410) setErrorMsg('Este encontro foi encerrado.')
       else if (res.status === 401) setErrorMsg('Faça login na área secreta para acessar.')
-      else setErrorMsg('Algo deu errado. Tente novamente.')
+      else setErrorMsg(`Algo deu errado. (${res.status}: ${body.error ?? 'erro desconhecido'})`)
 
       setPhase('error')
       return null
