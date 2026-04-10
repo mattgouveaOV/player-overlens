@@ -1,0 +1,105 @@
+@import "tailwindcss";
+
+:root {
+  --background: #09090b;
+  --foreground: #fafafa;
+
+  /* Brand colors — Overlens (espelha BRAND.md) */
+  --brand-amber:         #fcbb00;
+  --brand-amber-dim:     #f99c00;
+  --brand-green:         #00c758;
+  --brand-green-light:   #05df72;
+  --brand-blue:          #3080ff;
+  --brand-red:           #fb2c36;
+  --brand-red-light:     #ff6568;
+
+  /* Surface tokens */
+  --surface-1: #18181b;
+  --surface-2: #27272a;
+  --surface-3: #3f3f46;
+
+  /* Text tokens */
+  --text-primary:  #fafafa;
+  --text-muted:    #a1a1aa;
+  --text-subtle:   #71717a;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --font-sans:    var(--font-inter);
+  --font-display: var(--font-outfit);
+  --font-mono:    var(--font-jetbrains-mono);
+
+  --color-brand-amber:   var(--brand-amber);
+  --color-brand-green:   var(--brand-green);
+  --color-brand-blue:    var(--brand-blue);
+  --color-brand-red:     var(--brand-red);
+
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+
+  --color-text-primary: var(--text-primary);
+  --color-text-muted:   var(--text-muted);
+  --color-text-subtle:  var(--text-subtle);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* LiveKit video tiles — força fundo escuro consistente */
+[data-livekit-video-track] {
+  background-color: var(--surface-1);
+}
+
+/* Focus rings — âmbar Overlens */
+:focus-visible {
+  outline: 2px solid var(--brand-amber);
+  outline-offset: 2px;
+}
+
+/* Scrollbar sutil para painéis internos */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--surface-3) transparent;
+}
+
+/* Pulse sutil para bullet "Ao vivo" */
+@keyframes live-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+
+.animate-live-pulse {
+  animation: live-pulse 2s ease-in-out infinite;
+}
+
+/* Atravessando badge */
+@keyframes atravessando-fade {
+  0%   { opacity: 0; transform: translateY(4px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.animate-atravessando {
+  animation: atravessando-fade 200ms ease-out forwards;
+}
+
+/* Reduce motion — respeita preferência do sistema */
+@media (prefers-reduced-motion: reduce) {
+  .animate-live-pulse,
+  .animate-atravessando {
+    animation: none;
+  }
+}
