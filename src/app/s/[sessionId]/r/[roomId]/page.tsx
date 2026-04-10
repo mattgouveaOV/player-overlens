@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { use } from 'react'
 import { PreviewGate } from '@/components/call/preview-gate'
@@ -34,13 +34,22 @@ interface Props {
 
 type Phase = 'preview' | 'entering' | 'incall' | 'error'
 
-export default function RoomPage({ params }: Props) {
+function LoadingSpinner() {
+  return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="w-8 h-8 border-2 border-zinc-700 border-t-[var(--brand-amber)] rounded-full animate-spin" />
+    </div>
+  )
+}
+
+// Componente interno usa useSearchParams() e use(params) dentro de Suspense
+function RoomPageInner({ params }: Props) {
   const { sessionId, roomId } = use(params)
   const searchParams = useSearchParams()
   const skipPreview = searchParams.get('skipPreview') === '1'
   const router = useRouter()
 
-  const [phase, setPhase] = useState<Phase>(skipPreview ? 'entering' : 'preview')
+  const [phase, setPhase] = useState<Phase>('preview')
   const [errorMsg, setErrorMsg] = useState<string>()
   const [tokenData, setTokenData] = useState<TokenResponse | null>(null)
   const [sessionData, setSessionData] = useState<SessionData | null>(null)
@@ -60,7 +69,6 @@ export default function RoomPage({ params }: Props) {
       supabase.auth
         .setSession({ access_token: at, refresh_token: rt ?? '' })
         .finally(() => {
-          // Remove tokens da URL imediatamente após uso
           window.history.replaceState({}, '', window.location.pathname + window.location.search)
           setAuthReady(true)
         })
@@ -119,6 +127,7 @@ export default function RoomPage({ params }: Props) {
   // skipPreview: vai direto buscar token após auth estar pronta
   useEffect(() => {
     if (!authReady || !skipPreview) return
+    setPhase('entering')
     fetchToken().then(data => {
       if (!data) return
       setTokenData(data)
@@ -182,9 +191,14 @@ export default function RoomPage({ params }: Props) {
     )
   }
 
+  return <LoadingSpinner />
+}
+
+// Suspense obrigatório para useSearchParams() e use(params) em Next.js 15+
+export default function RoomPage({ params }: Props) {
   return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="w-8 h-8 border-2 border-zinc-700 border-t-[var(--brand-amber)] rounded-full animate-spin" />
-    </div>
+    <Suspense fallback={<LoadingSpinner />}>
+      <RoomPageInner params={params} />
+    </Suspense>
   )
 }
