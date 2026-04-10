@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { joinRoom } from '@/lib/presence'
+import { joinRoom, type JoinResult } from '@/lib/presence'
 import { ensureRoom } from '@/lib/livekit/rooms'
 import { mintJoinToken } from '@/lib/livekit/tokens'
 
@@ -80,15 +80,20 @@ export async function POST(
   const livekitRoomName = (room as { livekit_room_name?: string }).livekit_room_name ?? `sala_${room.id}`
 
   // Transação de presença (fecha anterior + insere nova se tem vaga)
-  const joinResult = await joinRoom({
-    userId: user.id,
-    sessionId,
-    roomId,
-  })
+  let joinResult: JoinResult
+  try {
+    joinResult = await joinRoom({ userId: user.id, sessionId, roomId })
+  } catch (err) {
+    console.error('[token/route] joinRoom falhou:', err)
+    return NextResponse.json({ error: 'Erro ao registrar presença' }, { status: 500 })
+  }
 
   if (!joinResult.ok) {
     if (joinResult.reason === 'full') {
       return NextResponse.json({ error: 'Sala cheia', reason: 'full' }, { status: 409 })
+    }
+    if (joinResult.reason === 'session_not_live') {
+      return NextResponse.json({ error: 'Sessão encerrada', reason: 'session_not_live' }, { status: 410 })
     }
     return NextResponse.json({ error: 'Sala não encontrada', reason: joinResult.reason }, { status: 404 })
   }
