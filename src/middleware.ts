@@ -37,8 +37,10 @@ export async function middleware(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
 
   // Rotas que não redirecionam para login mesmo sem auth
+  // /s/ rotas são públicas: auth já foi validada pelo area-secreta antes de
+  // construir a playerUrl. Segurança real fica nos tokens LiveKit.
   const isApiRoute = pathname.startsWith('/api/')
-  const isPublicPage = pathname.startsWith('/encerrado')
+  const isPublicPage = pathname.startsWith('/encerrado') || pathname.startsWith('/s/')
 
   if (!user && !isApiRoute && !isPublicPage) {
     // Redireciona para login da área secreta com return_url
