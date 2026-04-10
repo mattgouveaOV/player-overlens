@@ -15,9 +15,12 @@ export async function POST(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  // Auth
+  // Auth — aceita cookie (padrão) ou Bearer token (fallback para iframe cross-domain)
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const bearerJwt = req.headers.get('Authorization')?.replace('Bearer ', '') ?? undefined
+  const { data: { user } } = bearerJwt
+    ? await supabase.auth.getUser(bearerJwt)
+    : await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
 
   // Membro ativo

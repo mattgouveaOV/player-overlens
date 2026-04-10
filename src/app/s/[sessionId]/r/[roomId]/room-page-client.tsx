@@ -55,6 +55,8 @@ function RoomPageInner({ sessionId, roomId }: Props) {
   const [enterCam, setEnterCam] = useState(false)
   const [enterMic, setEnterMic] = useState(false)
   const [authReady, setAuthReady] = useState(false)
+  // Access token guardado em memória para contornar bloqueio de cookies em iframe cross-domain
+  const [bearerToken, setBearerToken] = useState<string | null>(null)
 
   // Lê tokens de auth do hash fragment (passados pela área-secreta no cross-domain iframe)
   // O hash nunca é enviado ao servidor — seguro para tokens de sessão
@@ -64,6 +66,9 @@ function RoomPageInner({ sessionId, roomId }: Props) {
     const rt = hash.get('rt')
 
     if (at) {
+      // Guarda o access token em estado — usado como Bearer header nas chamadas de API
+      // porque cookies cross-domain em iframe são bloqueados por Safari/Chrome
+      setBearerToken(at)
       const supabase = createClient()
       supabase.auth
         .setSession({ access_token: at, refresh_token: rt ?? '' })
@@ -76,19 +81,24 @@ function RoomPageInner({ sessionId, roomId }: Props) {
     }
   }, [])
 
+  function authHeaders(): HeadersInit {
+    return bearerToken ? { Authorization: `Bearer ${bearerToken}` } : {}
+  }
+
   // Carrega dados da sessão (salas + counts) após auth estar pronta
   useEffect(() => {
     if (!authReady) return
-    fetch(`/api/sessions/${sessionId}/counts`)
+    fetch(`/api/sessions/${sessionId}/counts`, { headers: authHeaders() })
       .then(r => r.json())
       .then(data => setSessionData(data))
       .catch(() => {})
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId, authReady])
 
   async function fetchToken(): Promise<TokenResponse | null> {
     const res = await fetch(`/api/sessions/${sessionId}/rooms/${roomId}/token`, {
       method: 'POST',
-      headers: { 'X-Player-Client': '1' },
+      headers: { 'X-Player-Client': '1', ...authHeaders() },
     })
 
     if (!res.ok) {

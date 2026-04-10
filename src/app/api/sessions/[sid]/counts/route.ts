@@ -12,8 +12,12 @@ export async function GET(
 ) {
   const { sid: sessionId } = await params
 
+  // Auth — aceita cookie (padrão) ou Bearer token (fallback para iframe cross-domain)
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const bearerJwt = _req.headers.get('Authorization')?.replace('Bearer ', '') ?? undefined
+  const { data: { user } } = bearerJwt
+    ? await supabase.auth.getUser(bearerJwt)
+    : await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
 
   const { data: rooms } = await supabase
