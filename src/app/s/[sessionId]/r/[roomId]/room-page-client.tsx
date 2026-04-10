@@ -155,7 +155,7 @@ function RoomPageInner({ sessionId, roomId }: Props) {
   }
 
   if (phase === 'preview' || phase === 'entering') {
-    const room = sessionData?.allRooms.find(r => r.id === roomId)
+    const room = sessionData?.allRooms?.find(r => r.id === roomId)
 
     return (
       <PreviewGate
@@ -169,7 +169,7 @@ function RoomPageInner({ sessionId, roomId }: Props) {
   }
 
   if (phase === 'incall' && tokenData && sessionData) {
-    const currentRoom = sessionData.allRooms.find(r => r.id === roomId) ?? {
+    const currentRoom = sessionData.allRooms?.find(r => r.id === roomId) ?? {
       id: roomId,
       name: '…',
       anchor_prompt: tokenData.anchorPrompt,
