@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { use } from 'react'
 import { PreviewGate } from '@/components/call/preview-gate'
 import { RoomStage } from '@/components/call/room-stage'
+import { createClient } from '@/lib/supabase/client'
 import type { RoomCount } from '@/lib/realtime'
 
 interface TokenResponse {
@@ -45,14 +46,37 @@ export default function RoomPage({ params }: Props) {
   const [sessionData, setSessionData] = useState<SessionData | null>(null)
   const [enterCam, setEnterCam] = useState(false)
   const [enterMic, setEnterMic] = useState(false)
+  const [authReady, setAuthReady] = useState(false)
 
-  // Carrega dados da sessão (salas + counts) para o rail
+  // Lê tokens de auth do hash fragment (passados pela área-secreta no cross-domain iframe)
+  // O hash nunca é enviado ao servidor — seguro para tokens de sessão
   useEffect(() => {
+    const hash = new URLSearchParams(window.location.hash.slice(1))
+    const at = hash.get('at')
+    const rt = hash.get('rt')
+
+    if (at) {
+      const supabase = createClient()
+      supabase.auth
+        .setSession({ access_token: at, refresh_token: rt ?? '' })
+        .finally(() => {
+          // Remove tokens da URL imediatamente após uso
+          window.history.replaceState({}, '', window.location.pathname + window.location.search)
+          setAuthReady(true)
+        })
+    } else {
+      setAuthReady(true)
+    }
+  }, [])
+
+  // Carrega dados da sessão (salas + counts) após auth estar pronta
+  useEffect(() => {
+    if (!authReady) return
     fetch(`/api/sessions/${sessionId}/counts`)
       .then(r => r.json())
       .then(data => setSessionData(data))
       .catch(() => {})
-  }, [sessionId])
+  }, [sessionId, authReady])
 
   async function fetchToken(): Promise<TokenResponse | null> {
     const res = await fetch(`/api/sessions/${sessionId}/rooms/${roomId}/token`, {
@@ -81,23 +105,30 @@ export default function RoomPage({ params }: Props) {
     setEnterCam(withCamera)
     setEnterMic(withMic)
     setPhase('entering')
-    const data = await fetchToken()
-    if (!data) return
-    setTokenData(data)
-    setPhase('incall')
+    try {
+      const data = await fetchToken()
+      if (!data) return
+      setTokenData(data)
+      setPhase('incall')
+    } catch {
+      setErrorMsg('Erro de conexão. Tente novamente.')
+      setPhase('error')
+    }
   }
 
-  // skipPreview: vai direto buscar token
+  // skipPreview: vai direto buscar token após auth estar pronta
   useEffect(() => {
-    if (skipPreview) {
-      fetchToken().then(data => {
-        if (!data) return
-        setTokenData(data)
-        setPhase('incall')
-      })
-    }
+    if (!authReady || !skipPreview) return
+    fetchToken().then(data => {
+      if (!data) return
+      setTokenData(data)
+      setPhase('incall')
+    }).catch(() => {
+      setErrorMsg('Erro de conexão. Tente novamente.')
+      setPhase('error')
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [authReady])
 
   if (phase === 'error') {
     return (
@@ -116,7 +147,6 @@ export default function RoomPage({ params }: Props) {
   }
 
   if (phase === 'preview' || phase === 'entering') {
-    // Busca nome da sala para o preview gate
     const room = sessionData?.allRooms.find(r => r.id === roomId)
 
     return (
@@ -152,7 +182,6 @@ export default function RoomPage({ params }: Props) {
     )
   }
 
-  // Carregando
   return (
     <div className="min-h-screen flex items-center justify-center">
       <div className="w-8 h-8 border-2 border-zinc-700 border-t-[var(--brand-amber)] rounded-full animate-spin" />
