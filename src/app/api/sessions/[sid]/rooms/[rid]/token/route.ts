@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createClientWithJwt } from '@/lib/supabase/server'
 import { joinRoom, type JoinResult } from '@/lib/presence'
 import { ensureRoom } from '@/lib/livekit/rooms'
 import { mintJoinToken } from '@/lib/livekit/tokens'
@@ -16,11 +16,10 @@ export async function POST(
   }
 
   // Auth — aceita cookie (padrão) ou Bearer token (fallback para iframe cross-domain)
-  const supabase = await createClient()
-  const bearerJwt = req.headers.get('Authorization')?.replace('Bearer ', '') ?? undefined
-  const { data: { user } } = bearerJwt
-    ? await supabase.auth.getUser(bearerJwt)
-    : await supabase.auth.getUser()
+  // createClientWithJwt passa o JWT no header global, garantindo que RLS funcione
+  const bearerJwt = req.headers.get('Authorization')?.replace('Bearer ', '') ?? null
+  const supabase = bearerJwt ? createClientWithJwt(bearerJwt) : await createClient()
+  const { data: { user } } = await supabase.auth.getUser(bearerJwt ?? undefined)
   if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
 
   // Membro ativo

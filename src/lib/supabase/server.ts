@@ -26,6 +26,24 @@ export async function createClient() {
   )
 }
 
+/**
+ * Cria um client autenticado via Bearer JWT (para route handlers chamados de iframe cross-domain
+ * onde cookies de sessão não chegam). Passa o JWT no Authorization header global para que
+ * o RLS reconheça o usuário autenticado em todas as queries.
+ */
+export function createClientWithJwt(jwt: string) {
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      global: {
+        headers: { Authorization: `Bearer ${jwt}` },
+      },
+      cookies: { getAll: () => [], setAll: () => {} },
+    }
+  )
+}
+
 /** Cliente com service_role — apenas para route handlers do lado servidor */
 export function createServiceClient() {
   return createServerClient(

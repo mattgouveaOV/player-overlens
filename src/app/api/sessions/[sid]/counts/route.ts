@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createClientWithJwt } from '@/lib/supabase/server'
 
 /**
  * GET /api/sessions/[sid]/counts
@@ -13,11 +13,9 @@ export async function GET(
   const { sid: sessionId } = await params
 
   // Auth — aceita cookie (padrão) ou Bearer token (fallback para iframe cross-domain)
-  const supabase = await createClient()
-  const bearerJwt = _req.headers.get('Authorization')?.replace('Bearer ', '') ?? undefined
-  const { data: { user } } = bearerJwt
-    ? await supabase.auth.getUser(bearerJwt)
-    : await supabase.auth.getUser()
+  const bearerJwt = _req.headers.get('Authorization')?.replace('Bearer ', '') ?? null
+  const supabase = bearerJwt ? createClientWithJwt(bearerJwt) : await createClient()
+  const { data: { user } } = await supabase.auth.getUser(bearerJwt ?? undefined)
   if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
 
   const { data: rooms } = await supabase
