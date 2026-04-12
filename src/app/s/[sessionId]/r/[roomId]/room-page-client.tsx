@@ -170,6 +170,14 @@ function RoomPageInner({ sessionId, roomId }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authReady])
 
+  // Avisa o parent (area-secreta) que a sala está pronta para exibição.
+  // O parent mantém o modal de transição visível até receber este sinal.
+  useEffect(() => {
+    if (phase === 'incall') {
+      window.parent.postMessage({ type: 'player:ready' }, '*')
+    }
+  }, [phase])
+
   if (phase === 'error') {
     return (
       <div className="min-h-screen flex items-center justify-center px-4">
