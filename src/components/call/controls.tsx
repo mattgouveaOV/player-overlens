@@ -7,6 +7,8 @@ import {
 import { Track } from 'livekit-client'
 import { Mic, MicOff, Camera, CameraOff, Monitor, MessageSquare, LogOut } from 'lucide-react'
 import { copy } from '@/lib/copy'
+import { SettingsMenu } from './settings-menu'
+import { setDevicePref } from '@/lib/device-prefs'
 
 interface ControlsProps {
   onLeave: () => void
@@ -15,7 +17,12 @@ interface ControlsProps {
   chatUnread?: number
 }
 
-export function Controls({ onLeave, onToggleChat, chatOpen, chatUnread = 0 }: ControlsProps) {
+export function Controls({
+  onLeave,
+  onToggleChat,
+  chatOpen,
+  chatUnread = 0,
+}: ControlsProps) {
   const { localParticipant, isMicrophoneEnabled, isCameraEnabled } = useLocalParticipant()
   const room = useMaybeRoomContext()
 
@@ -29,11 +36,15 @@ export function Controls({ onLeave, onToggleChat, chatOpen, chatUnread = 0 }: Co
     : false
 
   async function toggleMic() {
-    await localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled)
+    const next = !isMicrophoneEnabled
+    await localParticipant.setMicrophoneEnabled(next)
+    setDevicePref('micOn', String(next))
   }
 
   async function toggleCam() {
-    await localParticipant.setCameraEnabled(!isCameraEnabled)
+    const next = !isCameraEnabled
+    await localParticipant.setCameraEnabled(next)
+    setDevicePref('camOn', String(next))
   }
 
   async function toggleScreen() {
@@ -45,7 +56,7 @@ export function Controls({ onLeave, onToggleChat, chatOpen, chatUnread = 0 }: Co
   }
 
   return (
-    <div className="h-14 border-t border-zinc-800 bg-[var(--background)] flex items-center justify-center gap-2 px-4">
+    <div className="h-14 shrink-0 border-t border-zinc-800 bg-[var(--background)] flex items-center justify-center gap-2 px-4">
       {/* Mic */}
       <ControlButton
         active={!!isMicrophoneEnabled}
@@ -96,6 +107,9 @@ export function Controls({ onLeave, onToggleChat, chatOpen, chatUnread = 0 }: Co
           )}
         </div>
       </ControlButton>
+
+      {/* Configurações — dispositivos + espelhamento */}
+      <SettingsMenu />
 
       {/* Sair */}
       <button

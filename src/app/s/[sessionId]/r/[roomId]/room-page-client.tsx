@@ -6,6 +6,7 @@ import { PreviewGate } from '@/components/call/preview-gate'
 import { RoomStage } from '@/components/call/room-stage'
 import { createClient } from '@/lib/supabase/client'
 import type { RoomCount } from '@/lib/realtime'
+import { getDevicePrefs } from '@/lib/device-prefs'
 
 interface TokenResponse {
   token: string
@@ -54,6 +55,8 @@ function RoomPageInner({ sessionId, roomId }: Props) {
   const [sessionData, setSessionData] = useState<SessionData | null>(null)
   const [enterCam, setEnterCam] = useState(false)
   const [enterMic, setEnterMic] = useState(false)
+  const [enterCamId, setEnterCamId] = useState('')
+  const [enterMicId, setEnterMicId] = useState('')
   const [authReady, setAuthReady] = useState(false)
   // Access token guardado em memória para contornar bloqueio de cookies em iframe cross-domain
   const [bearerToken, setBearerToken] = useState<string | null>(null)
@@ -118,9 +121,10 @@ function RoomPageInner({ sessionId, roomId }: Props) {
     return res.json()
   }
 
-  async function handleEnter({ withCamera, withMic }: { withCamera: boolean; withMic: boolean; videoDeviceId?: string }) {
+  async function handleEnter({ withCamera, withMic, videoDeviceId }: { withCamera: boolean; withMic: boolean; videoDeviceId?: string }) {
     setEnterCam(withCamera)
     setEnterMic(withMic)
+    setEnterCamId(videoDeviceId ?? '')
     setPhase('entering')
     try {
       const data = await fetchToken()
@@ -133,9 +137,15 @@ function RoomPageInner({ sessionId, roomId }: Props) {
     }
   }
 
-  // skipPreview: vai direto buscar token após auth estar pronta
+  // skipPreview: vai direto buscar token após auth estar pronta, restaurando
+  // mic/câmera e device IDs da sala anterior via sessionStorage
   useEffect(() => {
     if (!authReady || !skipPreview) return
+    const prefs = getDevicePrefs()
+    setEnterCam(prefs.camOn)
+    setEnterMic(prefs.micOn)
+    setEnterCamId(prefs.camId)
+    setEnterMicId(prefs.micId)
     setPhase('entering')
     fetchToken().then(data => {
       if (!data) return
@@ -196,6 +206,9 @@ function RoomPageInner({ sessionId, roomId }: Props) {
         token={tokenData.token}
         initialCamOn={enterCam}
         initialMicOn={enterMic}
+        initialCamId={enterCamId || undefined}
+        initialMicId={enterMicId || undefined}
+        bearerToken={bearerToken}
       />
     )
   }

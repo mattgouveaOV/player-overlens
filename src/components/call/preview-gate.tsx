@@ -5,6 +5,7 @@ import { Camera, CameraOff, Mic, MicOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { PromptAnchor } from './prompt-anchor'
 import { copy } from '@/lib/copy'
+import { getDevicePrefs, setDevicePref } from '@/lib/device-prefs'
 
 interface PreviewGateProps {
   roomName: string
@@ -18,14 +19,38 @@ export function PreviewGate({ roomName, anchorPrompt, onEnter, onBack, isEnterin
   const videoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
 
-  // Câmera e mic OFF por default — princípio do contrato social
-  const [camOn, setCamOn] = useState(false)
-  const [micOn, setMicOn] = useState(false)
+  // Hidrata a partir das prefs salvas — mantém config da última sala
+  const [camOn, setCamOn] = useState(() => getDevicePrefs().camOn)
+  const [micOn, setMicOn] = useState(() => getDevicePrefs().micOn)
   const [camAvailable, setCamAvailable] = useState(true)
 
-  // Seletor de dispositivo
+  // Seletor de dispositivo — inicia com o último device usado
   const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([])
-  const [selectedDeviceId, setSelectedDeviceId] = useState<string>('')
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string>(() => getDevicePrefs().camId)
+
+  // Aviso de fones de ouvido — detecta se o usuário parece estar usando caixinhas.
+  // Sem fones, o AEC do browser + Krisp ainda podem não segurar dependendo do volume/ganho.
+  const [showHeadphoneWarn, setShowHeadphoneWarn] = useState(false)
+
+  // Detecta output de áudio — só funciona com label visível (Chrome expõe após permissão de mic/cam)
+  async function checkHeadphones(devices?: MediaDeviceInfo[]) {
+    try {
+      const all = devices ?? await navigator.mediaDevices.enumerateDevices()
+      const outputs = all.filter(d => d.kind === 'audiooutput')
+      if (outputs.length === 0) return
+      // Se todos os labels estão em branco, não temos info suficiente — avisa por precaução
+      const hasLabels = outputs.some(d => d.label.length > 0)
+      if (!hasLabels) {
+        setShowHeadphoneWarn(true)
+        return
+      }
+      const headphonePattern = /headphone|headset|earpod|airpod|bluetooth|earphone|earbuds|fone|auricular/i
+      const hasHeadphones = outputs.some(d => headphonePattern.test(d.label))
+      if (!hasHeadphones) setShowHeadphoneWarn(true)
+    } catch {
+      // silencia
+    }
+  }
 
   // Enumera câmeras disponíveis (precisa de permissão — só chama após primeira stream)
   async function loadVideoDevices() {
@@ -36,10 +61,18 @@ export function PreviewGate({ roomName, anchorPrompt, onEnter, onBack, isEnterin
       if (cams.length > 0 && !selectedDeviceId) {
         setSelectedDeviceId(cams[0].deviceId)
       }
+      // Aproveita a chamada que já tem labels (pós-permissão) para checar headphones
+      await checkHeadphones(devices)
     } catch {
       // silencia — não bloqueia o fluxo
     }
   }
+
+  // Verificação inicial (sem permissão — labels podem vir em branco, mostra aviso por precaução)
+  useEffect(() => {
+    checkHeadphones()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     if (!camOn) {
@@ -80,6 +113,7 @@ export function PreviewGate({ roomName, anchorPrompt, onEnter, onBack, isEnterin
 
   function handleDeviceChange(deviceId: string) {
     setSelectedDeviceId(deviceId)
+    setDevicePref('camId', deviceId)
     // O useEffect vai reiniciar a stream com o novo device
     if (camOn) {
       streamRef.current?.getTracks().forEach(t => t.stop())
@@ -89,6 +123,10 @@ export function PreviewGate({ roomName, anchorPrompt, onEnter, onBack, isEnterin
 
   function handleEnter() {
     streamRef.current?.getTracks().forEach(t => t.stop())
+    // Persiste estado final antes de entrar (por segurança, além dos toggles)
+    setDevicePref('camOn', String(camOn))
+    setDevicePref('micOn', String(micOn))
+    setDevicePref('camId', selectedDeviceId)
     onEnter({ withCamera: camOn, withMic: micOn, videoDeviceId: selectedDeviceId || undefined })
   }
 
@@ -145,7 +183,7 @@ export function PreviewGate({ roomName, anchorPrompt, onEnter, onBack, isEnterin
         {/* Controles de dispositivo */}
         <div className="flex justify-center gap-3 mb-6">
           <button
-            onClick={() => camAvailable && setCamOn(v => !v)}
+            onClick={() => camAvailable && setCamOn(v => { const next = !v; setDevicePref('camOn', String(next)); return next })}
             disabled={!camAvailable}
             title={camOn ? 'Desligar câmera' : 'Ligar câmera'}
             className={`
@@ -162,7 +200,7 @@ export function PreviewGate({ roomName, anchorPrompt, onEnter, onBack, isEnterin
           </button>
 
           <button
-            onClick={() => setMicOn(v => !v)}
+            onClick={() => setMicOn(v => { const next = !v; setDevicePref('micOn', String(next)); return next })}
             title={micOn ? 'Silenciar' : 'Ativar microfone'}
             className={`
               w-10 h-10 rounded-full flex items-center justify-center
@@ -186,6 +224,32 @@ export function PreviewGate({ roomName, anchorPrompt, onEnter, onBack, isEnterin
             {copy.previewGate.noRecording}
           </p>
         </div>
+
+        {/* Aviso de fones — aparece quando não detectamos headphones no output */}
+        {showHeadphoneWarn && (
+          <div className="mb-4 flex items-start gap-2.5 rounded-lg border border-[var(--brand-amber)]/30 bg-[var(--brand-amber)]/8 px-3 py-2.5">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-4 w-4 shrink-0 text-[var(--brand-amber)] mt-0.5">
+              <path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+            </svg>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-[var(--brand-amber)] font-medium leading-snug">
+                Recomendamos fones de ouvido
+              </p>
+              <p className="text-xs text-[var(--text-subtle)] mt-0.5 leading-snug">
+                Com caixinhas, seu áudio pode gerar eco para os outros participantes mesmo com cancelamento ativo.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowHeadphoneWarn(false)}
+              className="shrink-0 text-[var(--text-subtle)] hover:text-[var(--text-muted)] cursor-pointer"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-3.5 w-3.5">
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        )}
 
         {/* CTAs */}
         <div className="flex gap-3">
