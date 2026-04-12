@@ -51,11 +51,7 @@ export function SessionForm({ sessionId, initialData }: SessionFormProps) {
       errors.push(copy.admin.validation.futureDate)
     }
     if (rooms.length === 0) errors.push(copy.admin.validation.minOneRoom)
-    for (const room of rooms) {
-      if (!room.anchor_prompt.trim()) {
-        errors.push(`${copy.admin.validation.anchorRequired}: "${room.name || 'Sem nome'}"`)
-      }
-    }
+
     return errors
   }
 

@@ -101,7 +101,6 @@ export function RoomsList({ rooms, onChange }: RoomsListProps) {
           <RoomField
             label={copy.admin.fields.anchorPrompt}
             hint={copy.admin.fields.anchorPromptHint}
-            required
           >
             <textarea
               value={room.anchor_prompt}
