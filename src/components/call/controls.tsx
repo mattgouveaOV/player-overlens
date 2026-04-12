@@ -5,7 +5,8 @@ import {
   useMaybeRoomContext,
 } from '@livekit/components-react'
 import { Track } from 'livekit-client'
-import { Mic, MicOff, Camera, CameraOff, Monitor, MessageSquare, LogOut } from 'lucide-react'
+import { useState } from 'react'
+import { Mic, MicOff, Camera, CameraOff, Monitor, MessageSquare, LogOut, Loader2 } from 'lucide-react'
 import { copy } from '@/lib/copy'
 import { SettingsMenu } from './settings-menu'
 import { setDevicePref } from '@/lib/device-prefs'
@@ -25,6 +26,7 @@ export function Controls({
 }: ControlsProps) {
   const { localParticipant, isMicrophoneEnabled, isCameraEnabled } = useLocalParticipant()
   const room = useMaybeRoomContext()
+  const [isLeaving, setIsLeaving] = useState(false)
 
   const canScreenShare = typeof navigator !== 'undefined' &&
     typeof (navigator.mediaDevices as { getDisplayMedia?: unknown })?.getDisplayMedia === 'function'
@@ -55,11 +57,22 @@ export function Controls({
     }
   }
 
+  async function handleLeave() {
+    if (isLeaving) return
+    setIsLeaving(true)
+    try {
+      await onLeave()
+    } catch {
+      setIsLeaving(false)
+    }
+  }
+
   return (
     <div className="h-14 shrink-0 border-t border-zinc-800 bg-[var(--background)] flex items-center justify-center gap-2 px-4">
       {/* Mic */}
       <ControlButton
         active={!!isMicrophoneEnabled}
+        muted={!isMicrophoneEnabled}
         onClick={toggleMic}
         label={!isMicrophoneEnabled ? copy.inCall.unmute : copy.inCall.mute}
       >
@@ -72,6 +85,7 @@ export function Controls({
       {/* Câmera */}
       <ControlButton
         active={isCameraEnabled}
+        muted={!isCameraEnabled}
         onClick={toggleCam}
         label={isCameraEnabled ? copy.inCall.camOff : copy.inCall.camOn}
       >
@@ -85,6 +99,7 @@ export function Controls({
       {canScreenShare && (
         <ControlButton
           active={isScreenSharing}
+          sharing={isScreenSharing}
           onClick={toggleScreen}
           label={isScreenSharing ? copy.inCall.stopShare : copy.inCall.shareScreen}
         >
@@ -113,17 +128,23 @@ export function Controls({
 
       {/* Sair */}
       <button
-        onClick={onLeave}
+        onClick={handleLeave}
+        disabled={isLeaving}
         title={copy.inCall.leave}
-        className="
+        className={`
           ml-4 flex items-center gap-1.5 px-3 py-1.5 rounded-lg
-          text-sm text-[var(--text-muted)]
-          hover:text-[var(--brand-red)] hover:bg-[var(--surface-2)]
-          transition-colors cursor-pointer
-        "
+          text-sm transition-colors cursor-pointer
+          ${isLeaving
+            ? 'text-[var(--brand-red)] bg-[var(--surface-2)] opacity-70 cursor-wait'
+            : 'text-[var(--text-muted)] hover:text-[var(--brand-red)] hover:bg-[var(--surface-2)]'
+          }
+        `}
       >
-        <LogOut className="w-4 h-4" />
-        {copy.inCall.leave}
+        {isLeaving
+          ? <Loader2 className="w-4 h-4 animate-spin" />
+          : <LogOut className="w-4 h-4" />
+        }
+        {isLeaving ? 'Saindo…' : copy.inCall.leave}
       </button>
     </div>
   )
@@ -131,15 +152,35 @@ export function Controls({
 
 function ControlButton({
   active,
+  muted,
+  sharing,
   onClick,
   label,
   children,
 }: {
   active: boolean
+  muted?: boolean
+  sharing?: boolean
   onClick: () => void
   label: string
   children: React.ReactNode
 }) {
+  // Mic/câmera OFF: fundo vermelho sutil, borda e ícone vermelhos
+  // Screen share ativo: borda verde
+  // Estado ativo normal (mic ON, cam ON, chat aberto): borda clara, ícone branco
+  // Estado inativo neutro: cinza sutil
+  let classes: string
+
+  if (muted) {
+    classes = 'bg-[var(--brand-red)]/15 border-[var(--brand-red)]/40 text-[var(--brand-red-light)] hover:bg-[var(--brand-red)]/25 hover:border-[var(--brand-red)]/60'
+  } else if (sharing) {
+    classes = 'bg-[var(--brand-green)]/15 border-[var(--brand-green)]/40 text-[var(--brand-green-light)] hover:bg-[var(--brand-green)]/25 hover:border-[var(--brand-green)]/60'
+  } else if (active) {
+    classes = 'bg-[var(--surface-2)] border-zinc-600 text-[var(--text-primary)] hover:border-zinc-500'
+  } else {
+    classes = 'bg-[var(--surface-1)] border-zinc-800 text-[var(--text-subtle)] hover:border-zinc-500 hover:text-[var(--text-primary)]'
+  }
+
   return (
     <button
       onClick={onClick}
@@ -147,11 +188,7 @@ function ControlButton({
       className={`
         w-10 h-10 rounded-full flex items-center justify-center
         border transition-all duration-150 cursor-pointer
-        ${active
-          ? 'bg-[var(--surface-2)] border-zinc-600 text-[var(--text-primary)]'
-          : 'bg-[var(--surface-1)] border-zinc-800 text-[var(--text-subtle)]'
-        }
-        hover:border-zinc-500 hover:text-[var(--text-primary)]
+        ${classes}
       `}
     >
       {children}

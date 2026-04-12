@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createClientWithJwt } from '@/lib/supabase/server'
 import { heartbeat } from '@/lib/presence'
 
 export async function POST(
@@ -8,8 +8,10 @@ export async function POST(
 ) {
   const { sid: sessionId } = await params
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  // Auth — aceita cookie OU Bearer (iframe cross-domain)
+  const bearerJwt = req.headers.get('Authorization')?.replace('Bearer ', '') ?? null
+  const supabase = bearerJwt ? createClientWithJwt(bearerJwt) : await createClient()
+  const { data: { user } } = await supabase.auth.getUser(bearerJwt ?? undefined)
   if (!user) return NextResponse.json({ ok: false }, { status: 401 })
 
   await heartbeat({ userId: user.id, sessionId })
