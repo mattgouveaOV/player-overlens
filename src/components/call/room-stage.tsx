@@ -264,6 +264,7 @@ export function RoomStage({
 }: RoomStageProps) {
   const router = useRouter()
   const [isAtravessando, setIsAtravessando] = useState(false)
+  const isAtravessandoRef = useRef(false)
   const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const authHeaders = useCallback((): HeadersInit => {
@@ -332,6 +333,7 @@ export function RoomStage({
     async (targetRoomId: string) => {
       if (isAtravessando) return
       setIsAtravessando(true)
+      isAtravessandoRef.current = true
 
       // Mínimo 600ms para o ritual visual
       const minDelay = new Promise(r => setTimeout(r, 600))
@@ -393,6 +395,10 @@ export function RoomStage({
       video={initialCamOn ? (initialCamId ? { deviceId: initialCamId } : true) : false}
       options={roomOptions}
       onDisconnected={() => {
+        // Durante troca de sala (isAtravessando), o disconnect é esperado.
+        // Não enviar player:leave — o modal do parent deve permanecer visível
+        // até player:ready da nova sala.
+        if (isAtravessandoRef.current) return
         if (typeof window !== 'undefined' && window.self !== window.top) {
           window.parent.postMessage({ type: 'player:leave' }, '*')
           return
