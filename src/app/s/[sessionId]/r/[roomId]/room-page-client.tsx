@@ -62,16 +62,17 @@ function RoomPageInner({ sessionId, roomId }: Props) {
   const [bearerToken, setBearerToken] = useState<string | null>(null)
 
   // Lê tokens de auth do hash fragment (passados pela área-secreta no cross-domain iframe)
-  // O hash nunca é enviado ao servidor — seguro para tokens de sessão
+  // O hash nunca é enviado ao servidor — seguro para tokens de sessão.
+  // Persiste em sessionStorage para sobreviver a router.replace entre salas.
   useEffect(() => {
     const hash = new URLSearchParams(window.location.hash.slice(1))
     const at = hash.get('at')
     const rt = hash.get('rt')
 
+    // Fonte 1: hash fragment (primeiro acesso via iframe)
     if (at) {
-      // Guarda o access token em estado — usado como Bearer header nas chamadas de API
-      // porque cookies cross-domain em iframe são bloqueados por Safari/Chrome
       setBearerToken(at)
+      try { sessionStorage.setItem('player-bearer', at) } catch {}
       const supabase = createClient()
       supabase.auth
         .setSession({ access_token: at, refresh_token: rt ?? '' })
@@ -80,7 +81,18 @@ function RoomPageInner({ sessionId, roomId }: Props) {
           setAuthReady(true)
         })
     } else {
-      setAuthReady(true)
+      // Fonte 2: sessionStorage (navegação interna entre salas via handleAtravessar)
+      let stored: string | null = null
+      try { stored = sessionStorage.getItem('player-bearer') } catch {}
+      if (stored) {
+        setBearerToken(stored)
+        const supabase = createClient()
+        supabase.auth
+          .setSession({ access_token: stored, refresh_token: '' })
+          .finally(() => setAuthReady(true))
+      } else {
+        setAuthReady(true)
+      }
     }
   }, [])
 
