@@ -35,6 +35,10 @@ interface Props {
 
 type Phase = 'preview' | 'entering' | 'incall' | 'error'
 
+// Fallback em memória para bearer token — sobrevive a remounts do componente (router.replace
+// entre salas) sem depender de sessionStorage, que o Safari ITP bloqueia em iframes cross-origin.
+let _bearerCache: string | null = null
+
 function LoadingSpinner() {
   return (
     <div className="min-h-screen flex items-center justify-center">
@@ -63,7 +67,8 @@ function RoomPageInner({ sessionId, roomId }: Props) {
 
   // Lê tokens de auth do hash fragment (passados pela área-secreta no cross-domain iframe)
   // O hash nunca é enviado ao servidor — seguro para tokens de sessão.
-  // Persiste em sessionStorage para sobreviver a router.replace entre salas.
+  // Persiste em _bearerCache (module-level) para sobreviver a router.replace entre salas.
+  // sessionStorage é backup mas Safari ITP bloqueia em iframes cross-origin.
   useEffect(() => {
     const hash = new URLSearchParams(window.location.hash.slice(1))
     const at = hash.get('at')
@@ -72,6 +77,7 @@ function RoomPageInner({ sessionId, roomId }: Props) {
     // Fonte 1: hash fragment (primeiro acesso via iframe)
     if (at) {
       setBearerToken(at)
+      _bearerCache = at
       try { sessionStorage.setItem('player-bearer', at) } catch {}
       const supabase = createClient()
       supabase.auth
@@ -81,11 +87,11 @@ function RoomPageInner({ sessionId, roomId }: Props) {
           setAuthReady(true)
         })
     } else {
-      // Fonte 2: sessionStorage (navegação interna entre salas via handleAtravessar)
-      let stored: string | null = null
-      try { stored = sessionStorage.getItem('player-bearer') } catch {}
+      // Fonte 2: memória (sobrevive a remounts) → sessionStorage (fallback para Chrome)
+      const stored = _bearerCache ?? (() => { try { return sessionStorage.getItem('player-bearer') } catch { return null } })()
       if (stored) {
         setBearerToken(stored)
+        _bearerCache = stored
         const supabase = createClient()
         supabase.auth
           .setSession({ access_token: stored, refresh_token: '' })

@@ -54,11 +54,15 @@ export async function POST(
   const durationMinutes = (session as { duration_minutes?: number }).duration_minutes ?? 90
   const endsAt = new Date(scheduledAt.getTime() + durationMinutes * 60 * 1000 + 5 * 60 * 1000) // + 5min grace
 
-  if (session.status !== 'live') {
-    if (now < scheduledAt) {
-      return NextResponse.json({ error: 'Sessão ainda não abriu', reason: 'not_yet_open' }, { status: 409 })
-    }
+  // 'completed' e 'cancelled' são terminais — não há como entrar.
+  // 'opening' significa que a sessão ainda não foi promovida para live.
+  // 'live' e 'grace' são válidos: joinRoom abaixo fecha presença anterior e insere
+  // a nova atomicamente; trg_presence_joined reverte grace → live antes do commit.
+  if (session.status === 'completed' || session.status === 'cancelled') {
     return NextResponse.json({ error: 'Sessão encerrada' }, { status: 410 })
+  }
+  if (session.status === 'opening') {
+    return NextResponse.json({ error: 'Sessão ainda não abriu', reason: 'not_yet_open' }, { status: 409 })
   }
 
   if (now > endsAt) {

@@ -68,56 +68,63 @@ export function PreviewGate({ roomName, anchorPrompt, onEnter, onBack, isEnterin
     }
   }
 
-  // Verificação inicial (sem permissão — labels podem vir em branco, mostra aviso por precaução)
+  // Verificação inicial + auto-start da câmera se a pref salva estava ligada
+  // (funciona em Chrome; no Safari pode falhar sem gesto — nesse caso fica em camOff, sem quebrar)
   useEffect(() => {
     checkHeadphones()
+    if (camOn) {
+      startCamera(selectedDeviceId || undefined)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  useEffect(() => {
-    if (!camOn) {
-      streamRef.current?.getTracks().forEach(t => t.stop())
-      streamRef.current = null
-      if (videoRef.current) videoRef.current.srcObject = null
-      return
-    }
-
+  // Abre a câmera — chamado diretamente no click handler para satisfazer
+  // o requisito de user-gesture do Safari (getUserMedia deve estar no call stack
+  // do evento, senão é rejeitado silenciosamente em iframes cross-origin).
+  async function startCamera(deviceId?: string) {
     const constraints: MediaStreamConstraints = {
-      video: selectedDeviceId ? { deviceId: { exact: selectedDeviceId } } : true,
+      video: deviceId ? { deviceId: { exact: deviceId } } : true,
       audio: false,
     }
 
-    navigator.mediaDevices
-      .getUserMedia(constraints)
-      .then(async stream => {
-        streamRef.current = stream
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream
-          videoRef.current.muted = true
-          videoRef.current.play().catch(() => {})
-        }
-        // Agora que temos permissão, enumera os dispositivos com labels
-        await loadVideoDevices()
-      })
-      .catch(() => {
-        setCamOn(false)
-        setCamAvailable(false)
-      })
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia(constraints)
+      streamRef.current = stream
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream
+        videoRef.current.muted = true
+        videoRef.current.play().catch(() => {})
+      }
+      setCamOn(true)
+      await loadVideoDevices()
+    } catch {
+      setCamOn(false)
+      setCamAvailable(false)
+    }
+  }
 
+  function stopCamera() {
+    streamRef.current?.getTracks().forEach(t => t.stop())
+    streamRef.current = null
+    if (videoRef.current) videoRef.current.srcObject = null
+    setCamOn(false)
+  }
+
+  // Cleanup ao desmontar
+  useEffect(() => {
     return () => {
       streamRef.current?.getTracks().forEach(t => t.stop())
       streamRef.current = null
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [camOn, selectedDeviceId])
+  }, [])
 
   function handleDeviceChange(deviceId: string) {
     setSelectedDeviceId(deviceId)
     setDevicePref('camId', deviceId)
-    // O useEffect vai reiniciar a stream com o novo device
+    // Reinicia stream com o novo device (permissão já concedida, não precisa de user gesture)
     if (camOn) {
-      streamRef.current?.getTracks().forEach(t => t.stop())
-      streamRef.current = null
+      stopCamera()
+      startCamera(deviceId)
     }
   }
 
@@ -183,7 +190,16 @@ export function PreviewGate({ roomName, anchorPrompt, onEnter, onBack, isEnterin
         {/* Controles de dispositivo */}
         <div className="flex justify-center gap-3 mb-6">
           <button
-            onClick={() => camAvailable && setCamOn(v => { const next = !v; setDevicePref('camOn', String(next)); return next })}
+            onClick={() => {
+              if (!camAvailable) return
+              if (camOn) {
+                stopCamera()
+                setDevicePref('camOn', 'false')
+              } else {
+                startCamera(selectedDeviceId || undefined)
+                setDevicePref('camOn', 'true')
+              }
+            }}
             disabled={!camAvailable}
             title={camOn ? 'Desligar câmera' : 'Ligar câmera'}
             className={`

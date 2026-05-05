@@ -335,19 +335,17 @@ export function RoomStage({
       setIsAtravessando(true)
       isAtravessandoRef.current = true
 
-      // Mínimo 600ms para o ritual visual
-      const minDelay = new Promise(r => setTimeout(r, 600))
-      const leave = fetch(`/api/sessions/${sessionId}/leave`, {
-        method: 'POST',
-        headers: { 'X-Player-Client': '1', 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({ roomId: room.id }),
-      })
-      await Promise.all([minDelay, leave])
+      // Mínimo 600ms para o ritual visual do modal de transição
+      await new Promise(r => setTimeout(r, 600))
 
-      // Replace para não poluir histórico + skipPreview para ir direto ao token
+      // Não chamamos /leave aqui: player_join_room na próxima sala fecha a
+      // presença anterior atomicamente (UPDATE old + INSERT new na mesma transação).
+      // Chamar /leave antes criava uma janela em que o usuário ficava sem presença
+      // ativa, disparando trg_presence_left → status='grace' em sessões espontâneas
+      // solo, e o token endpoint bloqueava o join na nova sala com 410.
       router.replace(`/s/${sessionId}/r/${targetRoomId}?skipPreview=1`)
     },
-    [isAtravessando, sessionId, room.id, router, authHeaders]
+    [isAtravessando, sessionId, router]
   )
 
   // Escuta postMessage do parent (area-secreta) para trocar de sala sem recarregar o iframe.
