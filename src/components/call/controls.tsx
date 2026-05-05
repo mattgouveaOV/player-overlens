@@ -6,7 +6,7 @@ import {
 } from '@livekit/components-react'
 import { Track } from 'livekit-client'
 import { useState } from 'react'
-import { Mic, MicOff, Camera, CameraOff, Monitor, MessageSquare, LogOut, Loader2 } from 'lucide-react'
+import { Mic, MicOff, Camera, CameraOff, Monitor, MessageSquare, BookOpen, LogOut, Loader2 } from 'lucide-react'
 import { copy } from '@/lib/copy'
 import { SettingsMenu } from './settings-menu'
 import { setDevicePref } from '@/lib/device-prefs'
@@ -121,6 +121,19 @@ export function Controls({
             </span>
           )}
         </div>
+      </ControlButton>
+
+      {/* Códice — painel de notas pessoais no host (área secreta) */}
+      <ControlButton
+        active={false}
+        onClick={() => {
+          if (typeof window !== 'undefined' && window.self !== window.top) {
+            window.parent.postMessage({ type: 'player:codice:toggle' }, '*')
+          }
+        }}
+        label="Códice"
+      >
+        <BookOpen className="w-4 h-4" />
       </ControlButton>
 
       {/* Configurações — dispositivos + espelhamento */}
