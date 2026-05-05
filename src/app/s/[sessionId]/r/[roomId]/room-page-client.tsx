@@ -39,6 +39,17 @@ type Phase = 'preview' | 'entering' | 'incall' | 'error'
 // entre salas) sem depender de sessionStorage, que o Safari ITP bloqueia em iframes cross-origin.
 let _bearerCache: string | null = null
 
+// "Voltar" do preview/erro: dentro de iframe (area-secreta) emite player:leave para o host
+// navegar ao lobby — navegar dentro do iframe quebra a auth (tokens só estavam no hash da
+// URL inicial) e cai num 404. Standalone, mantém o router.push para /s/[sessionId].
+function handleBack(router: ReturnType<typeof useRouter>, sessionId: string) {
+  if (typeof window !== 'undefined' && window.self !== window.top) {
+    window.parent.postMessage({ type: 'player:leave', intentional: true }, '*')
+    return
+  }
+  router.push(`/s/${sessionId}`)
+}
+
 function LoadingSpinner() {
   return (
     <div className="min-h-screen flex items-center justify-center">
@@ -190,7 +201,7 @@ function RoomPageInner({ sessionId, roomId }: Props) {
         <div className="text-center max-w-sm">
           <p className="text-[var(--text-muted)] text-sm mb-6">{errorMsg}</p>
           <button
-            onClick={() => router.push(`/s/${sessionId}`)}
+            onClick={() => handleBack(router, sessionId)}
             className="text-sm text-[var(--brand-amber)] hover:underline cursor-pointer"
           >
             ← Voltar para o mapa
@@ -208,7 +219,7 @@ function RoomPageInner({ sessionId, roomId }: Props) {
         roomName={room?.name ?? '…'}
         anchorPrompt={room?.anchor_prompt ?? null}
         onEnter={handleEnter}
-        onBack={() => router.push(`/s/${sessionId}`)}
+        onBack={() => handleBack(router, sessionId)}
         isEntering={phase === 'entering'}
       />
     )
